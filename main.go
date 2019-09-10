@@ -55,14 +55,17 @@ func HandleConn(r *redis.Client, conn net.Conn) {
 	}
 }
 
-func Poller(r *redis.Client) {
+func Ticker(r *redis.Client) {
 	ticker := time.Tick(time.Second)
 	for _ = range ticker {
-		ListKeys(r)
+		err := ListValues(r)
+		if err != nil {
+			log.Println(err)
+		}
 	}
 }
 
-var LUAdeserialize = `
+var LUA = `
 local result = {};
 for i, key in ipairs(KEYS) do
 	local value = redis.call('GET', key);
@@ -71,9 +74,9 @@ for i, key in ipairs(KEYS) do
 end;
 return result;`
 
-var SHAdeserialize string
+var SHA string
 
-func ListKeys(r *redis.Client) {
+func ListValues(r *redis.Client) error {
 	var cursor uint64
 	var err error
 
@@ -81,8 +84,7 @@ func ListKeys(r *redis.Client) {
 		var keys []string
 		keys, cursor, err = r.Scan(cursor, prefix+"*", 50).Result()
 		if err != nil {
-			log.Println(err)
-			break
+			return fmt.Errorf("failed scan: %v", err)
 		}
 
 		if cursor == 0 {
@@ -90,10 +92,9 @@ func ListKeys(r *redis.Client) {
 				break
 			}
 
-			vals, err := r.EvalSha(SHAdeserialize, keys).Result()
+			vals, err := r.EvalSha(SHA, keys).Result()
 			if err != nil {
-				log.Println(err)
-				break
+				return fmt.Errorf("failed eval: %v", err)
 			}
 
 			s := fmt.Sprintln("Current values:")
@@ -106,6 +107,8 @@ func ListKeys(r *redis.Client) {
 			break
 		}
 	}
+
+	return nil
 }
 
 func main() {
@@ -115,13 +118,13 @@ func main() {
 		log.Panic(err)
 	}
 
-	sha, err := r.ScriptLoad(LUAdeserialize).Result()
+	sha, err := r.ScriptLoad(LUA).Result()
 	if err != nil {
 		log.Panic(err)
 	}
 
-	SHAdeserialize = sha
-	log.Printf("DEBUG: sha for deserialize script is %s\n", SHAdeserialize)
+	SHA = sha
+	log.Printf("DEBUG: sha for deserialize script is %s\n", SHA)
 
 	listener, err := net.Listen("tcp", host+":"+strconv.Itoa(port))
 	if err != nil {
@@ -129,12 +132,13 @@ func main() {
 	}
 	defer listener.Close()
 
-	go Poller(r)
+	go Ticker(r)
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			log.Panic(err)
+			log.Println(err)
+			continue
 		}
 
 		go HandleConn(r, conn)
