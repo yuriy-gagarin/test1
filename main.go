@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/yuriy-gagarin/netstring"
+
 	"github.com/google/uuid"
 
 	"github.com/go-redis/redis"
@@ -39,7 +41,7 @@ func HandleConn(r *redis.Client, conn net.Conn) {
 	log.Printf("New connection: %s\n", conn.RemoteAddr().String())
 
 	scn := bufio.NewScanner(conn)
-	scn.Split(bufio.ScanLines)
+	scn.Split(netstring.SplitNetstring)
 
 	for scn.Scan() {
 		id, err := uuid.NewRandom()

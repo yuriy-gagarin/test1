@@ -1,0 +1,18 @@
+[
+  {
+    "domain": "abcdefg.com",
+    "ip": 33333
+  },
+  {
+    "domain": "hijklmn.com",
+    "ip": 77777
+  },
+  {
+    "domain": "opqrstu.com",
+    "ip": 11111
+  },
+  {
+    "domain": "vwxyzab.com",
+    "ip": 55555
+  }
+]

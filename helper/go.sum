@@ -1,2 +1,3 @@
-github.com/vmihailenco/msgpack v4.0.4+incompatible h1:dSLoQfGFAo3F6OoNhwUmLwVgaUXK79GlxNBwueZn0xI=
 github.com/vmihailenco/msgpack v4.0.4+incompatible/go.mod h1:fy3FlTQTDXWkZ7Bh6AcGMlsjHatGryHQYUTf1ShIgkk=
+github.com/yuriy-gagarin/netstring v0.0.0-20190914134606-d0c94129887f h1:4D2SPCNrcxm9MEZkz99Yty6b01lTRXDnoSj121jI4FE=
+github.com/yuriy-gagarin/netstring v0.0.0-20190914134606-d0c94129887f/go.mod h1:BTh4opuVERSrjIKo1p/cnV2c1U0yjoM/FKyBRHGsP+E=
