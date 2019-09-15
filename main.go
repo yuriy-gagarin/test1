@@ -4,11 +4,14 @@ import (
 	"bufio"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/vmihailenco/msgpack"
 
 	"github.com/yuriy-gagarin/netstring"
 
@@ -24,6 +27,13 @@ var port int
 var host string
 
 var redisaddr string
+
+var scriptIndexSearch string
+
+type Message struct {
+	Domain string `msgpack:"domain" json:"domain"`
+	Ip     uint32 `msgpack:"ip" json:"ip"`
+}
 
 func init() {
 	flag.IntVar(&port, "tcpport", 6000, "port")
@@ -67,50 +77,40 @@ func Ticker(r *redis.Client) {
 	}
 }
 
-var LUA = `
-local result = {};
-for i, key in ipairs(KEYS) do
-	local value = redis.call('GET', key);
-	local jvalue = cjson.encode(cmsgpack.unpack(value));
-	table.insert(result, jvalue);
-end;
-return result;`
-
-var SHA string
-
 func ListValues(r *redis.Client) error {
-	var cursor uint64
-	var err error
-
-	for {
-		var keys []string
-		keys, cursor, err = r.Scan(cursor, prefix+"*", 50).Result()
-		if err != nil {
-			return fmt.Errorf("failed scan: %v", err)
-		}
-
-		if cursor == 0 {
-			if len(keys) == 0 {
-				break
-			}
-
-			vals, err := r.EvalSha(SHA, keys).Result()
-			if err != nil {
-				return fmt.Errorf("failed eval: %v", err)
-			}
-
-			s := fmt.Sprintln("Current values:")
-			for _, v := range vals.([]interface{}) {
-				s += fmt.Sprintln(v.(string))
-			}
-
-			log.Print(s)
-
-			break
-		}
+	vals, err := r.EvalSha(scriptIndexSearch, []string{}, prefix+"*").Result()
+	if err != nil {
+		return fmt.Errorf("failed eval: %v", err)
 	}
 
+	if len(vals.([]interface{})) == 0 {
+		log.Print("Current values:\nnone\n\n")
+		return nil
+	}
+
+	s := fmt.Sprintln("Current values:")
+	for _, v := range vals.([]interface{}) {
+		var msg Message
+		err = msgpack.Unmarshal([]byte(v.(string)), &msg)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		s += fmt.Sprintf("Domain: %s\t Ip: %d\n", msg.Domain, msg.Ip)
+	}
+
+	log.Println(s)
+
 	return nil
+}
+
+func loadScript(r *redis.Client, path string) (string, error) {
+	b, err := ioutil.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+
+	return r.ScriptLoad(string(b)).Result()
 }
 
 func main() {
@@ -120,13 +120,10 @@ func main() {
 		log.Panic(err)
 	}
 
-	sha, err := r.ScriptLoad(LUA).Result()
+	scriptIndexSearch, err = loadScript(r, "indexSearch.lua")
 	if err != nil {
 		log.Panic(err)
 	}
-
-	SHA = sha
-	log.Printf("DEBUG: sha for deserialize script is %s\n", SHA)
 
 	listener, err := net.Listen("tcp", host+":"+strconv.Itoa(port))
 	if err != nil {

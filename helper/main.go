@@ -40,12 +40,13 @@ func main() {
 		log.Panic(err)
 	}
 
-	var mbuf bytes.Buffer
 	conn, err := net.Dial("tcp", "localhost:8080")
 	if err != nil {
 		panic(err)
 	}
+	defer conn.Close()
 
+	var mbuf bytes.Buffer
 	menc := msgpack.NewEncoder(&mbuf)
 	for _, v := range msgs {
 		err := menc.Encode(v)
@@ -65,10 +66,8 @@ func main() {
 		conn.Write(nc)
 		fmt.Printf("sent %v\n", string(nc))
 
-		time.Sleep(time.Duration(rand.Intn(100)) * time.Millisecond)
+		time.Sleep(time.Duration(rand.Intn(1000)) * time.Millisecond)
 	}
-
-	conn.Close()
 
 	ch := make(chan string, 0)
 
@@ -79,11 +78,6 @@ func main() {
 			ch <- text
 		}
 	}()
-
-	conn, err = net.Dial("tcp", "localhost:8080")
-	if err != nil {
-		panic(err)
-	}
 
 	for t := range ch {
 		ts := strings.Split(t, " ")
